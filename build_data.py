@@ -7,7 +7,7 @@ Sector board: 11 SPDR sector ETFs, daily % change.
 Market movers: Alpha Vantage TOP_GAINERS_LOSERS (1 call/day, optional).
 Pure stdlib.
 """
-import os, sys, io, csv, json, time, datetime as dt, urllib.parse, urllib.request, urllib.error
+import os, sys, io, csv, json, time, re, html, datetime as dt, urllib.parse, urllib.request, urllib.error
 
 # ---- watchlist (source of truth) ----
 TIER1 = ["DDOG", "CSCO", "NET", "CRWD", "DT", "SNOW", "MDB"]
@@ -101,6 +101,21 @@ def sentiment_label(score):
     return "Bullish"
 
 
+_TAG_RE = re.compile(r"<[^>]+>")
+_TRUNC_RE = re.compile(r"\s*\[\+\d+\s*chars?(?:acters)?\]\s*$", re.I)
+_WS_RE = re.compile(r"\s+")
+
+
+def clean_text(s):
+    if not s:
+        return ""
+    s = html.unescape(s)                 # &amp; -> &, &#39; -> '
+    s = _TAG_RE.sub("", s)               # strip <em> and any other tags
+    s = _TRUNC_RE.sub("", s)             # strip trailing "[+334 characters]"
+    s = _WS_RE.sub(" ", s).strip()
+    return s
+
+
 def first_sentence(text, limit=240):
     text = (text or "").strip().replace("\n", " ")
     if not text:
@@ -133,8 +148,8 @@ def get_news():
         if not arts:
             continue
         art = arts[0]
-        desc = art.get("description") or art.get("snippet", "")
-        title = art.get("title", "")
+        title = clean_text(art.get("title", ""))
+        desc = clean_text(art.get("description") or art.get("snippet", ""))
         link = art.get("url", "")
         score, hl = None, ""
         for ent in art.get("entities", []):
@@ -145,10 +160,13 @@ def get_news():
                 except (TypeError, ValueError):
                     score = None
                 hls = ent.get("highlights") or []
-                hl = hls[0].get("highlight", "") if hls else ""
+                hl = clean_text(hls[0].get("highlight", "")) if hls else ""
                 break
-        sentence = first_sentence(hl) or first_sentence(desc) or first_sentence(title)
-        res[t] = {"sentence": sentence, "sentiment": score,
+        # prefer the clean headline; fall back to a lead sentence, then the highlight
+        blurb = title or first_sentence(desc) or first_sentence(hl)
+        if len(blurb) > 160:
+            blurb = blurb[:157].rsplit(" ", 1)[0] + "…"
+        res[t] = {"sentence": blurb, "sentiment": score,
                   "label": sentiment_label(score), "url": link}
         time.sleep(0.4)
     print(f"[news] got {len(res)} blurbs")
