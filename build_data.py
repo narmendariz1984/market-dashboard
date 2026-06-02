@@ -1,26 +1,36 @@
 #!/usr/bin/env python3
 """
 Edge Watch data builder.
-OHLC: Tiingo primary (reliable from cloud) -> Stooq fallback (no key).
-News+sentiment: Marketaux, one short blurb per ticker, with diagnostics.
-Pure stdlib, no pip installs needed.
+OHLC: Tiingo primary -> Stooq fallback. (watchlist + 11 sector ETFs)
+News+sentiment: Marketaux, one blurb per watchlist ticker.
+Sector board: 11 SPDR sector ETFs, daily % change.
+Market movers: Alpha Vantage TOP_GAINERS_LOSERS (1 call/day, optional).
+Pure stdlib.
 """
 import os, sys, io, csv, json, time, datetime as dt, urllib.parse, urllib.request, urllib.error
 
-# ---- watchlist (edit here — source of truth) ----
+# ---- watchlist (source of truth) ----
 TIER1 = ["DDOG", "CSCO", "NET", "CRWD", "DT", "SNOW", "MDB"]
 TIER2 = ["NVDA", "CAT", "XOM"]
 BENCH = ["SPY", "QQQ", "IWM"]
 TICKERS = TIER1 + TIER2 + BENCH
+
+# ---- 11 SPDR sector ETFs -> sector rotation board ----
+SECTORS = [("XLK", "Technology"), ("XLF", "Financials"), ("XLV", "Health Care"),
+           ("XLE", "Energy"), ("XLY", "Consumer Discretionary"), ("XLP", "Consumer Staples"),
+           ("XLI", "Industrials"), ("XLB", "Materials"), ("XLRE", "Real Estate"),
+           ("XLU", "Utilities"), ("XLC", "Communication Services")]
+SECTOR_ETFS = [e for e, _ in SECTORS]
+PRICE_TICKERS = TICKERS + SECTOR_ETFS          # OHLC fetched for all of these
 BARS = 160
 
 TIINGO = os.environ.get("TIINGO_TOKEN", "").strip()
 MARKETAUX = os.environ.get("MARKETAUX_TOKEN", "").strip()
+ALPHAVANTAGE = os.environ.get("ALPHAVANTAGE_KEY", "").strip()
 UA = {"User-Agent": "edge-watch/1.0"}
 
 
 def fetch(url, timeout=25):
-    """Returns (status_code, text). Does not raise on HTTP errors."""
     req = urllib.request.Request(url, headers=UA)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -104,33 +114,28 @@ def first_sentence(text, limit=240):
 
 def get_news():
     res = {}
-    print(f"[news] MARKETAUX token set: {bool(MARKETAUX)}  (len={len(MARKETAUX)})")
+    print(f"[news] MARKETAUX token set: {bool(MARKETAUX)}")
     if not MARKETAUX:
-        print("[news] no token -> skipping news. Check the MARKETAUX_TOKEN secret.")
         return res
-    for t in TICKERS:
+    for t in TICKERS:                                   # news only for watchlist, not sector ETFs
         url = (f"https://api.marketaux.com/v1/news/all?symbols={t}"
                f"&filter_entities=true&language=en&limit=1&api_token={MARKETAUX}")
         try:
             status, body = fetch(url)
             data = json.loads(body)
         except Exception as e:
-            print(f"[news] {t} request/parse error: {e}")
+            print(f"[news] {t} error: {e}")
             continue
         if isinstance(data, dict) and data.get("error"):
             print(f"[news] {t} api error: {data.get('error')}")
             continue
         arts = data.get("data", []) if isinstance(data, dict) else []
         if not arts:
-            # one-time visibility into why nothing came back
-            if t == TICKERS[0]:
-                meta = data.get("meta") if isinstance(data, dict) else None
-                print(f"[news] {t} http {status} no-articles meta={meta}")
             continue
         art = arts[0]
         desc = art.get("description") or art.get("snippet", "")
-        link = art.get("url", "")
         title = art.get("title", "")
+        link = art.get("url", "")
         score, hl = None, ""
         for ent in art.get("entities", []):
             if (ent.get("symbol") or "").upper() == t:
@@ -150,11 +155,49 @@ def get_news():
     return res
 
 
+# ---- market movers (Alpha Vantage, optional) ----
+def _num(s):
+    try:
+        return round(float(str(s).replace("%", "").replace(",", "").strip()), 2)
+    except (TypeError, ValueError):
+        return None
+
+
+def get_movers():
+    out = {"gainers": [], "losers": [], "active": [], "as_of": ""}
+    print(f"[movers] ALPHAVANTAGE key set: {bool(ALPHAVANTAGE)}")
+    if not ALPHAVANTAGE:
+        return out
+    url = f"https://www.alphavantage.co/query?function=TOP_GAINERS_LOSERS&apikey={ALPHAVANTAGE}"
+    try:
+        status, body = fetch(url)
+        data = json.loads(body)
+    except Exception as e:
+        print(f"[movers] AV error: {e}")
+        return out
+    if "top_gainers" not in data:
+        msg = data.get("Information") or data.get("Note") or data.get("Error Message") or str(data)[:160]
+        print(f"[movers] AV no data: {msg}")
+        return out
+
+    def pack(arr):
+        return [{"ticker": x.get("ticker"), "change_pct": _num(x.get("change_percentage")),
+                 "price": _num(x.get("price"))} for x in (arr or [])[:5]]
+
+    out["gainers"] = pack(data.get("top_gainers"))
+    out["losers"] = pack(data.get("top_losers"))
+    out["active"] = pack(data.get("most_actively_traded"))
+    out["as_of"] = data.get("last_updated", "")
+    print(f"[movers] AV ok: {len(out['gainers'])} gainers, {len(out['losers'])} losers")
+    return out
+
+
 def main():
-    print(f"[init] TIINGO set: {bool(TIINGO)} | MARKETAUX set: {bool(MARKETAUX)}")
+    print(f"[init] TIINGO:{bool(TIINGO)} MARKETAUX:{bool(MARKETAUX)} ALPHAVANTAGE:{bool(ALPHAVANTAGE)}")
     news = get_news()
+    movers = get_movers()
     tickers, sources = {}, {}
-    for t in TICKERS:
+    for t in PRICE_TICKERS:
         ohlc, src = get_ohlc(t)
         sources[t] = src
         closes = [b["c"] for b in ohlc]
@@ -167,15 +210,19 @@ def main():
             "news": news.get(t, {"sentence": "", "sentiment": None, "label": "n/a", "url": ""}),
         }
         time.sleep(0.3)
+
     out = {
         "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "tiers": {"tier1": TIER1, "tier2": TIER2, "bench": BENCH},
+        "sectors": [{"etf": e, "name": n} for e, n in SECTORS],
+        "movers": movers,
         "sources": sources, "tickers": tickers,
     }
     with open("data.json", "w") as f:
         json.dump(out, f, separators=(",", ":"))
     ok = sum(1 for s in sources.values() if s != "none")
-    print(f"wrote data.json :: {ok}/{len(TICKERS)} ohlc ok, {len(news)} news blurbs, {out['generated_at']}")
+    print(f"wrote data.json :: {ok}/{len(PRICE_TICKERS)} ohlc ok, {len(news)} news, "
+          f"{len(movers['gainers'])} movers, {out['generated_at']}")
 
 
 if __name__ == "__main__":
