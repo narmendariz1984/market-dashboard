@@ -246,6 +246,12 @@ hr.sep{border:none; border-top:1px solid var(--line); margin:18px 0}
             <label class="fld"><span class="lt">Stop-loss <b>(required)</b></span><input id="tStop" class="mono" type="number" min="0" step="0.01" placeholder="below entry"/></label>
             <label class="fld"><span class="lt">Take-profit target <b>(required)</b></span><input id="tTarget" class="mono" type="number" min="0" step="0.01" placeholder="above entry"/></label>
           </div>
+          <label class="fld"><span class="lt">Strategy <b>(tag for P&amp;L tracking)</b></span>
+            <select id="tStrategy" class="mono">
+              <option value="disciplined">Disciplined — edge-based</option>
+              <option value="wildcard">Wildcard — momentum gamble</option>
+            </select>
+          </label>
           <div class="riskbox" id="riskBox"></div>
           <hr class="sep"/>
           <label class="fld"><span class="lt">1 · Thesis — what's the trade?</span><textarea id="tQ1" placeholder="e.g. DDOG AI-workload observability converts to seats; NRR re-accelerates toward 120%."></textarea></label>
@@ -287,7 +293,7 @@ hr.sep{border:none; border-top:1px solid var(--line); margin:18px 0}
       <div style="overflow-x:auto">
       <table>
         <thead><tr>
-          <th class="l">Ticker</th><th>Shares</th><th>Avg entry</th><th>Last</th><th>Mkt value</th><th>Unreal. P&amp;L</th><th>Stop</th><th>Target</th><th>R</th>
+          <th class="l">Ticker</th><th>Strategy</th><th>Shares</th><th>Avg entry</th><th>Last</th><th>Mkt value</th><th>Unreal. P&amp;L</th><th>Stop</th><th>Target</th><th>R</th>
         </tr></thead>
         <tbody id="folioBody"></tbody>
       </table>
@@ -300,6 +306,11 @@ hr.sep{border:none; border-top:1px solid var(--line); margin:18px 0}
         <div>Closed trades: <b id="closedCount">0</b></div>
         <div>Win rate: <b id="winRate">—</b></div>
       </div>
+    </div>
+    <div class="panel">
+      <h2>P&amp;L by strategy</h2>
+      <p class="desc">Disciplined (edge-based) vs Wildcard (momentum gamble) — the honest scoreboard for whether chasing rockets actually beats the patient sleeve. Two strategies, one curve.</p>
+      <div id="byStrategy"></div>
     </div>
   </section>
 
@@ -590,10 +601,16 @@ function renderMovers(){
   $("moversLosers").innerHTML=rows(m.losers);
 }
 
+function stratPill(s){
+  const wild = s==="wildcard";
+  const col = wild? "var(--neg)":"var(--amber)";
+  return `<span style="font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:999px;border:1px solid ${col};color:${col}">${wild?"Wildcard":"Disciplined"}</span>`;
+}
+
 function renderFolio(){
   const body=$("folioBody"); body.innerHTML="";
   const entries=Object.entries(S.positions);
-  if(!entries.length){ body.innerHTML=`<tr><td colspan="9" class="empty">No open positions. Log one under “Log a Trade”.</td></tr>`; }
+  if(!entries.length){ body.innerHTML=`<tr><td colspan="10" class="empty">No open positions. Log one under “Log a Trade”.</td></tr>`; }
   for(const [sym,p] of entries){
     const px=lastClose(sym); const mv=isFinite(px)?px*p.shares:NaN;
     const upl=isFinite(px)?(px-p.avg)*p.shares:NaN;
@@ -601,6 +618,7 @@ function renderFolio(){
     const r=document.createElement("tr"); r.className="row";
     r.innerHTML=`
       <td class="l"><span class="tick">${sym}</span></td>
+      <td>${stratPill(p.strategy||"disciplined")}</td>
       <td>${p.shares.toLocaleString(undefined,{maximumFractionDigits:4})}</td>
       <td>${money(p.avg)}</td>
       <td>${isFinite(px)?money(px):'—'}</td>
@@ -616,6 +634,33 @@ function renderFolio(){
   $("realizedPnl").textContent=money(tot); $("realizedPnl").className=tot>=0?"pos":"neg";
   $("closedCount").textContent=closed.length;
   $("winRate").textContent=closed.length?Math.round(wins/closed.length*100)+"%":"—";
+  renderStrategy(closed);
+}
+
+function renderStrategy(closed){
+  const el=$("byStrategy"); if(!el) return;
+  const rows=["disciplined","wildcard"].map(tag=>{
+    let cost=0, mv=0, haveMv=true;
+    for(const [sym,p] of Object.entries(S.positions)){
+      if((p.strategy||"disciplined")!==tag) continue;
+      cost+=p.avg*p.shares;
+      const px=lastClose(sym);
+      if(isFinite(px)) mv+=px*p.shares; else haveMv=false;
+    }
+    const unreal = haveMv? (mv-cost) : NaN;
+    const realized = closed.filter(j=>(j.strategy||"disciplined")===tag).reduce((s,j)=>s+j.realized,0);
+    if(cost===0 && realized===0) return "";
+    const wild = tag==="wildcard";
+    const col = wild? "var(--neg)":"var(--amber)";
+    const uplCls = isFinite(unreal)?(unreal>=0?"pos":"neg"):"faint";
+    return `<div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px 14px;padding:8px 0;border-bottom:1px solid rgba(51,50,59,.5)">
+      <span style="font-family:var(--mono);font-weight:700;color:${col};min-width:96px">${wild?"Wildcard":"Disciplined"}</span>
+      <span class="muted">invested <b style="color:var(--ink)">${money(cost)}</b></span>
+      <span class="muted">unreal. <b class="${uplCls}">${isFinite(unreal)?money(unreal):'—'}</b></span>
+      <span class="muted">realized <b class="${realized>=0?'pos':'neg'}">${money(realized)}</b></span>
+    </div>`;
+  }).filter(Boolean).join("");
+  el.innerHTML = rows || `<span class="faint" style="font-size:13px">Tag trades as you log them to see the split.</span>`;
 }
 
 function renderJournal(){
@@ -756,17 +801,18 @@ function submitTrade(){
   const sh=num($("tShares").value), px=num($("tPrice").value);
   if(action==="buy"){
     const stop=num($("tStop").value), tgt=num($("tTarget").value);
+    const strat=$("tStrategy").value||"disciplined";
     const cost=sh*px; S.cash-=cost;
     const ex=S.positions[sym];
     if(ex){ const tot=ex.shares+sh; ex.avg=(ex.avg*ex.shares+px*sh)/tot; ex.shares=tot; ex.stop=stop; ex.target=tgt; }
-    else S.positions[sym]={shares:sh, avg:px, stop, target:tgt, opened:Date.now()};
-    S.journal.push({ts:Date.now(),action:"buy",sym,shares:sh,price:px,stop,target:tgt,
+    else S.positions[sym]={shares:sh, avg:px, stop, target:tgt, opened:Date.now(), strategy:strat};
+    S.journal.push({ts:Date.now(),action:"buy",sym,shares:sh,price:px,stop,target:tgt,strategy:strat,
       q1:$("tQ1").value.trim(),q2:$("tQ2").value.trim(),q3:$("tQ3").value.trim(),q4:$("tQ4").value.trim()});
   } else {
     const p=S.positions[sym]; const proceeds=sh*px; S.cash+=proceeds;
-    const realized=(px-p.avg)*sh;
+    const realized=(px-p.avg)*sh; const strat=(p&&p.strategy)||"disciplined";
     p.shares-=sh; if(p.shares<=1e-9) delete S.positions[sym];
-    S.journal.push({ts:Date.now(),action:"sell",sym,shares:sh,price:px,note:$("tNote").value.trim(),realized});
+    S.journal.push({ts:Date.now(),action:"sell",sym,shares:sh,price:px,note:$("tNote").value.trim(),realized,strategy:strat});
   }
   recordClose(sym,px); snapshot(); save();
   ["tTicker","tShares","tPrice","tStop","tTarget","tQ1","tQ2","tQ3","tQ4","tNote"].forEach(i=>$(i).value="");
