@@ -1,0 +1,39 @@
+name: refresh-market-data
+
+on:
+  schedule:
+    # 15:18 = 6:15pm Chicago, weekdays. timezone handles DST automatically.
+    - cron: '15 18 * * 1-5'
+      timezone: "America/Chicago"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build data.json
+        env:
+          TIINGO_TOKEN: ${{ secrets.TIINGO_TOKEN }}
+          MARKETAUX_TOKEN: ${{ secrets.MARKETAUX_TOKEN }}
+        run: python build_data.py
+
+      - name: Commit & push
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data.json
+          git commit -m "data: $(date -u +%FT%TZ)" || echo "no change"
+          git push
