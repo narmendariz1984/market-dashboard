@@ -194,13 +194,28 @@ hr.sep{border:none; border-top:1px solid var(--line); margin:18px 0}
         <thead>
           <tr>
             <th class="l">Ticker</th><th>Last</th><th>Day %</th>
-            <th>vs SMA20</th><th>vs SMA50</th><th>RSI(14)</th><th>MACD</th><th class="l">What a rules system would flag</th>
+            <th>vs SMA20</th><th>vs SMA50</th><th>RSI(14)</th><th>MACD</th><th class="l">Flag (hypothesis)</th><th class="l">News &amp; sentiment</th>
           </tr>
         </thead>
         <tbody id="watchBody"></tbody>
       </table>
       </div>
-      <p class="faint" style="font-size:11.5px; margin-top:12px">Indicators need history. With a candle-enabled key they backfill immediately; otherwise they fill in as you check daily, or paste history per symbol in Settings.</p>
+      <p class="faint" style="font-size:11.5px; margin-top:12px">Indicators are computed from the daily closes in the cloud feed and fill out as more history accumulates. The last column is a one-line headline + sentiment per ticker.</p>
+    </div>
+
+    <div class="panel" style="margin-top:18px">
+      <h2>Sector rotation</h2>
+      <p class="desc">The 11 SPDR sector ETFs ranked by today's move — a live read on where money is rotating, best to worst.</p>
+      <div id="sectorBoard" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px"></div>
+    </div>
+
+    <div class="panel" style="margin-top:18px" id="moversPanel" hidden>
+      <h2>Market movers <span class="faint" id="moversAsOf" style="font-size:11px;font-weight:400"></span></h2>
+      <p class="desc">Biggest gainers and losers across the whole US market today (Alpha Vantage). Market-wide, not your watchlist — a pulse check, not a buy list.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+        <div><div style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:6px;color:var(--pos)">Top gainers</div><div id="moversGainers"></div></div>
+        <div><div style="font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:6px;color:var(--neg)">Top losers</div><div id="moversLosers"></div></div>
+      </div>
     </div>
   </section>
 
@@ -302,23 +317,15 @@ hr.sep{border:none; border-top:1px solid var(--line); margin:18px 0}
   <section id="tab-settings" hidden>
     <div class="panel">
       <h2>Data source</h2>
-      <p class="desc">Your Finnhub key is stored only in this browser (localStorage) and is sent only to Finnhub. It never touches any other server.</p>
-      <div class="row2">
-        <label class="fld"><span class="lt">Provider</span>
-          <select id="setProvider">
-            <option value="finnhub">Finnhub (live quotes)</option>
-            <option value="manual">Manual entry only</option>
-          </select>
-        </label>
-        <label class="fld"><span class="lt">Finnhub API key</span>
-          <input id="setKey" class="mono" placeholder="paste key" autocomplete="off"/>
-        </label>
-      </div>
+      <p class="desc">The dashboard reads a static JSON feed published by your GitHub Action. No keys live here — they stay in GitHub Actions secrets.</p>
+      <label class="fld"><span class="lt">Cloud data URL</span>
+        <input id="setUrl" class="mono" placeholder="https://USER.github.io/market-dashboard/data.json" autocomplete="off"/>
+      </label>
       <button class="btn" id="saveSettings">Save</button>
-      <button class="btn ghost" id="testKey">Test connection</button>
+      <button class="btn ghost" id="testKey">Test feed</button>
       <span id="testStatus" class="muted" style="font-size:12.5px; margin-left:8px"></span>
       <div class="callout" style="margin-top:16px">
-        Get a free key at <a href="https://finnhub.io/register" target="_blank" rel="noopener">finnhub.io/register</a> — 60 calls/min, real-time US quotes, no card. Docs: <a href="https://finnhub.io/docs/api" target="_blank" rel="noopener">finnhub.io/docs/api</a>.
+        This is your Action's <span class="kbd">data.json</span> on GitHub Pages. Prices and sentiment refresh automatically after each weekday close — just open this page and hit Refresh. The watchlist itself is controlled in <span class="kbd">build_data.py</span>.
       </div>
     </div>
 
@@ -358,21 +365,21 @@ hr.sep{border:none; border-top:1px solid var(--line); margin:18px 0}
 "use strict";
 /* ============================================================
    Edge Watch — single-file disciplined paper-trading dashboard
-   Storage: localStorage (runs locally; not for Claude sandbox)
-   Data:    Finnhub /quote (CORS-enabled) + optional candle backfill
-            + manual entry fallback. Never hard-fails on network.
+   Storage: localStorage (runs locally; not for the Claude sandbox)
+   Data:    static JSON feed from a GitHub Action (daily OHLC + news/sentiment
+            + sector ETFs + market movers) with manual entry as fallback.
    ============================================================ */
 
 const K = "edgewatch:v1";
 const START_CASH = 10000;
-const FINN = "https://finnhub.io/api/v1";
+// Cloud feed written by the GitHub Action, served via GitHub Pages.
+const DEFAULT_DATA_URL = "https://narmendariz1984.github.io/market-dashboard/data.json";
 
 const DEFAULTS = {
   tier1: ["DDOG","CSCO","NET","CRWD","DT","SNOW","MDB"],
   tier2: ["NVDA","CAT","XOM"],
   bench: ["SPY","QQQ","IWM"],
-  provider: "manual",
-  key: "",
+  dataUrl: DEFAULT_DATA_URL,
   maxPct: 20
 };
 
@@ -388,6 +395,9 @@ function load(){
     history: {},            // sym -> [{d:'YYYY-MM-DD', c:Number}]
     prices: {},             // sym -> {c,pc,dp, t}
     snapshots: [],          // {d, port, spy}
+    news: {},               // sym -> {sentence, sentiment, label, url}
+    sectors: [],            // [{etf,name}] from cloud
+    movers: null,           // {gainers,losers,active,as_of} from cloud
     meta: { startDate:null, spyStart:null }
   };
   try{
@@ -450,28 +460,6 @@ function signalFor(sym){
 }
 
 /* ---------- data layer ---------- */
-async function fetchQuote(sym){
-  const key=S.settings.key;
-  if(S.settings.provider!=="finnhub" || !key) throw new Error("manual");
-  const r = await fetch(`${FINN}/quote?symbol=${encodeURIComponent(sym)}&token=${encodeURIComponent(key)}`);
-  if(!r.ok) throw new Error("HTTP "+r.status);
-  const d = await r.json();
-  if(typeof d.c!=="number" || d.c===0) throw new Error("no data for "+sym);
-  return d; // {c,h,l,o,pc,d,dp,t}
-}
-async function tryCandleBackfill(sym){
-  const key=S.settings.key; if(S.settings.provider!=="finnhub"||!key) return false;
-  if((S.history[sym]||[]).length>=60) return false; // already enough
-  const to=Math.floor(Date.now()/1000), from=to-120*86400;
-  try{
-    const r=await fetch(`${FINN}/stock/candle?symbol=${encodeURIComponent(sym)}&resolution=D&from=${from}&to=${to}&token=${encodeURIComponent(key)}`);
-    if(!r.ok) return false;
-    const d=await r.json();
-    if(d.s!=="ok"||!Array.isArray(d.c)) return false; // premium-gated -> silent fail
-    S.history[sym]=d.t.map((t,i)=>({d:new Date(t*1000).toISOString().slice(0,10), c:d.c[i]}));
-    return true;
-  }catch(e){ return false; }
-}
 function recordClose(sym, c){
   if(!isFinite(c)) return;
   const d=today(); const h=S.history[sym]||(S.history[sym]=[]);
@@ -479,32 +467,33 @@ function recordClose(sym, c){
   if(h.length>400) h.splice(0,h.length-400);
 }
 
-async function refreshAll(){
-  const syms=allSymbols();
-  setProviderPill();
-  if(S.settings.provider!=="finnhub" || !S.settings.key){
-    $("refreshStatus").textContent="Manual mode — set prices in Settings, or add a Finnhub key.";
-    renderAll(); return;
+async function loadFromCloud(){
+  const url=(S.settings.dataUrl||"").trim();
+  if(!url){ $("refreshStatus").textContent="No data URL set — add it in Settings, or enter prices manually."; renderAll(); return; }
+  $("refreshBtn").disabled=true; $("refreshStatus").textContent="Fetching cloud feed…";
+  try{
+    const r=await fetch(url,{cache:"no-store"});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const j=await r.json();
+    // tiers from the cloud are the source of truth (edit the watchlist in build_data.py)
+    if(j.tiers){ S.settings.tier1=j.tiers.tier1||S.settings.tier1; S.settings.tier2=j.tiers.tier2||S.settings.tier2; S.settings.bench=j.tiers.bench||S.settings.bench; }
+    S.sectors=Array.isArray(j.sectors)?j.sectors:[];
+    S.movers=j.movers||null;
+    for(const [sym,info] of Object.entries(j.tickers||{})){
+      if(Array.isArray(info.ohlc)&&info.ohlc.length) S.history[sym]=info.ohlc.map(b=>({d:b.d,c:b.c}));
+      if(info.last!=null) S.prices[sym]={c:info.last, pc:info.prev_close, dp:info.change_pct, t:Date.now()/1000};
+      if(info.news) (S.news||(S.news={}))[sym]=info.news;
+    }
+    if(!S.meta.startDate && S.prices["SPY"]){ S.meta.startDate=today(); S.meta.spyStart=S.prices["SPY"].c; }
+    snapshot(); save();
+    const stamp=j.generated_at?new Date(j.generated_at).toLocaleString():new Date().toLocaleString();
+    $("refreshStatus").textContent=`Loaded cloud feed · data as of ${stamp}`;
+  }catch(e){
+    $("refreshStatus").innerHTML=`<span class="neg">Cloud fetch failed: ${esc(e.message)}.</span> Check the URL in Settings, or enter prices manually.`;
   }
-  $("refreshBtn").disabled=true;
-  let ok=0, fail=0;
-  for(const sym of syms){
-    try{
-      await tryCandleBackfill(sym);
-      const q=await fetchQuote(sym);
-      S.prices[sym]={c:q.c, pc:q.pc, dp:q.dp, t:q.t||Date.now()/1000};
-      recordClose(sym, q.c); ok++;
-    }catch(e){ fail++; }
-    $("refreshStatus").textContent=`Fetching… ${ok+fail}/${syms.length}`;
-    await sleep(220); // stay under 60/min
-  }
-  // establish SPY benchmark anchor on first successful run
-  if(!S.meta.startDate && S.prices["SPY"]){ S.meta.startDate=today(); S.meta.spyStart=S.prices["SPY"].c; }
-  snapshot();
-  $("refreshBtn").disabled=false;
-  $("refreshStatus").textContent=`Updated ${new Date().toLocaleTimeString()} · ${ok} ok${fail?`, ${fail} failed`:""}`;
-  save(); renderAll();
+  $("refreshBtn").disabled=false; renderAll();
 }
+const refreshAll = loadFromCloud;
 
 /* ---------- portfolio math ---------- */
 function positionsValue(){ let v=0; for(const [s,p] of Object.entries(S.positions)){ const px=lastClose(s); if(isFinite(px)) v+=px*p.shares; } return v; }
@@ -520,8 +509,8 @@ function snapshot(){
 
 /* ---------- rendering ---------- */
 function setProviderPill(){
-  const el=$("providerPill"); const p=S.settings.provider;
-  if(p==="finnhub" && S.settings.key){ el.textContent="live"; el.className="pill live"; }
+  const el=$("providerPill");
+  if((S.settings.dataUrl||"").trim()){ el.textContent="cloud"; el.className="pill live"; }
   else { el.textContent="manual"; el.className="pill manual"; }
 }
 function renderHeader(){
@@ -536,16 +525,23 @@ function renderHeader(){
 function flagSpan(cls,txt){ return `<span class="flag ${cls}">${txt}</span>`; }
 function relCell(b){ if(b===null) return `<span class="faint">—</span>`; return b?`<span class="pos">above</span>`:`<span class="neg">below</span>`; }
 
+function sentClass(label){ if(!label||label==="n/a") return "na"; if(label.indexOf("Bear")>=0) return "down"; if(label.indexOf("Bull")>=0) return "up"; return "chop"; }
+
 function renderWatch(){
   const s=S.settings, body=$("watchBody"); body.innerHTML="";
   const tiers=[["Tier 1 · your edge",s.tier1],["Tier 2 · thematic (no edge — size small)",s.tier2],["Benchmarks · reference only",s.bench]];
   for(const [label,list] of tiers){
     if(!list.length) continue;
-    const tr=document.createElement("tr"); tr.innerHTML=`<td class="tier-label" colspan="8">${label}</td>`; body.appendChild(tr);
+    const tr=document.createElement("tr"); tr.innerHTML=`<td class="tier-label" colspan="9">${label}</td>`; body.appendChild(tr);
     for(const sym of list){
       const p=S.prices[sym]; const sig=signalFor(sym);
       const last=p?money(p.c):(isFinite(lastClose(sym))?money(lastClose(sym)):"—");
       const dp=p&&isFinite(p.dp)?p.dp:NaN;
+      const nw=(S.news&&S.news[sym])||null;
+      const sentence=(nw&&nw.sentence)?nw.sentence:"";
+      const newsCell = (nw && (sentence||nw.label!=="n/a"))
+        ? `<span class="flag ${sentClass(nw.label)}">${esc(nw.label)}</span> <span class="muted">${esc(sentence.slice(0,90))}${sentence.length>90?'…':''}</span>${nw.url?` <a href="${nw.url}" target="_blank" rel="noopener" class="faint">↗</a>`:''}`
+        : `<span class="faint">—</span>`;
       const r=document.createElement("tr"); r.className="row";
       r.innerHTML=`
         <td class="l"><span class="tick">${sym}</span></td>
@@ -555,10 +551,42 @@ function renderWatch(){
         <td>${relCell(sig.s50)}</td>
         <td>${isFinite(sig.rsi)?sig.rsi.toFixed(0):'<span class="faint">—</span>'}</td>
         <td>${sig.macd&&isFinite(sig.macd.hist)?(sig.macd.hist>=0?'<span class="pos">+</span>':'<span class="neg">−</span>'):'<span class="faint">—</span>'}</td>
-        <td class="l">${flagSpan(sig.flagClass||'na', sig.note)}</td>`;
+        <td class="l">${flagSpan(sig.flagClass||'na', sig.note)}</td>
+        <td class="l">${newsCell}</td>`;
       body.appendChild(r);
     }
   }
+}
+
+function renderSectors(){
+  const el=$("sectorBoard"); if(!el) return;
+  const list=(S.sectors||[]).map(x=>({name:x.name, etf:x.etf, dp:(S.prices[x.etf]&&isFinite(S.prices[x.etf].dp))?S.prices[x.etf].dp:null}))
+     .filter(x=>x.dp!==null).sort((a,b)=>b.dp-a.dp);
+  if(!list.length){ el.innerHTML=`<span class="faint" style="font-size:13px">No sector data yet — hit Refresh once the cloud feed includes sectors.</span>`; return; }
+  el.innerHTML=list.map(x=>{
+    const col=x.dp>=0?"var(--pos)":"var(--neg)";
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:14px;padding:8px 12px;border:1px solid var(--line);border-radius:9px;background:var(--panel-2)">
+      <span style="font-size:13px">${esc(x.name)} <span class="faint" style="font-family:var(--mono);font-size:11px">${esc(x.etf)}</span></span>
+      <span style="font-family:var(--mono);font-weight:600;color:${col}">${pct(x.dp)}</span></div>`;
+  }).join("");
+}
+
+function renderMovers(){
+  const panel=$("moversPanel"); if(!panel) return;
+  const m=S.movers;
+  const has = m && ((m.gainers&&m.gainers.length) || (m.losers&&m.losers.length));
+  if(!has){ panel.hidden=true; return; }
+  panel.hidden=false;
+  $("moversAsOf").textContent = m.as_of ? ("· "+m.as_of) : "";
+  const rows=arr=>(arr||[]).map(x=>{
+    const col=(x.change_pct>=0)?"var(--pos)":"var(--neg)";
+    return `<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 10px;border-bottom:1px solid rgba(51,50,59,.55);font-family:var(--mono);font-size:13px">
+      <span class="tick">${esc(x.ticker||"")}</span>
+      <span>${x.price!=null?money(x.price):"—"}</span>
+      <span style="color:${col};font-weight:600">${x.change_pct!=null?pct(x.change_pct):"—"}</span></div>`;
+  }).join("");
+  $("moversGainers").innerHTML=rows(m.gainers);
+  $("moversLosers").innerHTML=rows(m.losers);
 }
 
 function renderFolio(){
@@ -754,7 +782,7 @@ function switchTab(name){
 /* ---------- settings wiring ---------- */
 function loadSettingsForm(){
   const s=S.settings;
-  $("setProvider").value=s.provider; $("setKey").value=s.key||"";
+  $("setUrl").value=s.dataUrl||"";
   $("setTier1").value=s.tier1.join(", "); $("setTier2").value=s.tier2.join(", "); $("setBench").value=s.bench.join(", ");
   $("maxPct").value=s.maxPct;
   setProviderPill();
@@ -763,10 +791,9 @@ function parseList(v){ return v.split(/[, \n]+/).map(x=>x.trim().toUpperCase()).
 
 /* ---------- render all ---------- */
 function renderAll(){
-  setProviderPill(); renderHeader(); renderWatch(); renderFolio(); renderJournal(); renderChart();
-  // px hint on trade form
+  setProviderPill(); renderHeader(); renderWatch(); renderSectors(); renderMovers(); renderFolio(); renderJournal(); renderChart();
   const sym=$("tTicker").value.trim().toUpperCase();
-  $("tPxHint").textContent = sym && S.prices[sym] ? `(live ${money(S.prices[sym].c)})` : "";
+  $("tPxHint").textContent = sym && S.prices[sym] ? `(latest ${money(S.prices[sym].c)})` : "";
 }
 
 /* ---------- init ---------- */
@@ -797,14 +824,16 @@ function init(){
   });
   // settings
   $("saveSettings").addEventListener("click",()=>{
-    S.settings.provider=$("setProvider").value; S.settings.key=$("setKey").value.trim();
-    save(); setProviderPill(); $("testStatus").textContent="Saved.";
+    S.settings.dataUrl=$("setUrl").value.trim();
+    save(); setProviderPill(); $("testStatus").textContent="Saved."; loadFromCloud();
   });
   $("testKey").addEventListener("click",async()=>{
     $("testStatus").textContent="Testing…";
-    try{ S.settings.provider="finnhub"; S.settings.key=$("setKey").value.trim();
-      const q=await fetchQuote("AAPL"); $("testStatus").innerHTML=`<span class="pos">OK — AAPL ${money(q.c)}</span>`; save(); }
-    catch(e){ $("testStatus").innerHTML=`<span class="neg">Failed: ${esc(e.message)} (check key, or use manual mode)</span>`; }
+    const url=$("setUrl").value.trim();
+    try{ const r=await fetch(url,{cache:"no-store"}); if(!r.ok) throw new Error("HTTP "+r.status); const j=await r.json();
+      const n=Object.keys(j.tickers||{}).length;
+      $("testStatus").innerHTML=`<span class="pos">OK — ${n} tickers, generated ${j.generated_at?new Date(j.generated_at).toLocaleString():"?"}</span>`; }
+    catch(e){ $("testStatus").innerHTML=`<span class="neg">Failed: ${esc(e.message)}</span>`; }
   });
   $("saveWatch").addEventListener("click",()=>{
     S.settings.tier1=parseList($("setTier1").value); S.settings.tier2=parseList($("setTier2").value);
@@ -829,8 +858,8 @@ function init(){
 
   loadSettingsForm(); syncCostAndRisk(); gateCheck(); renderAll();
   window.addEventListener("resize",renderChart);
-  // auto-refresh once if live
-  if(S.settings.provider==="finnhub" && S.settings.key) refreshAll();
+  // auto-load the cloud feed on open
+  if((S.settings.dataUrl||"").trim()) loadFromCloud();
 }
 document.addEventListener("DOMContentLoaded",init);
 </script>
