@@ -526,6 +526,7 @@ function flagSpan(cls,txt){ return `<span class="flag ${cls}">${txt}</span>`; }
 function relCell(b){ if(b===null) return `<span class="faint">—</span>`; return b?`<span class="pos">above</span>`:`<span class="neg">below</span>`; }
 
 function sentClass(label){ if(!label||label==="n/a") return "na"; if(label.indexOf("Bear")>=0) return "down"; if(label.indexOf("Bull")>=0) return "up"; return "chop"; }
+function truncWords(s,n){ if(!s) return ""; if(s.length<=n) return s; return s.slice(0,n).replace(/\s+\S*$/,"")+"…"; }
 
 function renderWatch(){
   const s=S.settings, body=$("watchBody"); body.innerHTML="";
@@ -540,7 +541,7 @@ function renderWatch(){
       const nw=(S.news&&S.news[sym])||null;
       const sentence=(nw&&nw.sentence)?nw.sentence:"";
       const newsCell = (nw && (sentence||nw.label!=="n/a"))
-        ? `<span class="flag ${sentClass(nw.label)}">${esc(nw.label)}</span> <span class="muted">${esc(sentence.slice(0,90))}${sentence.length>90?'…':''}</span>${nw.url?` <a href="${nw.url}" target="_blank" rel="noopener" class="faint">↗</a>`:''}`
+        ? `<span class="flag ${sentClass(nw.label)}">${esc(nw.label)}</span> <span class="muted">${esc(truncWords(sentence,140))}</span>${nw.url?` <a href="${nw.url}" target="_blank" rel="noopener" class="faint">↗</a>`:''}`
         : `<span class="faint">—</span>`;
       const r=document.createElement("tr"); r.className="row";
       r.innerHTML=`
