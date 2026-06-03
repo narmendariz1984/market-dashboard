@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Edge Watch — Disciplined Market Dashboard</title>
+<title>Market Practice</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -131,8 +131,8 @@ hr.sep{border:none; border-top:1px solid var(--line); margin:18px 0}
 
   <header class="top">
     <div class="brand">
-      <h1>Edge&nbsp;Watch</h1>
-      <div class="sub">Paper desk · <b>$10,000</b> · resolute, not reckless · <span id="providerPill" class="pill manual">manual</span></div>
+      <h1>Market&nbsp;Practice</h1>
+      <div class="sub">Monopoly money · <b>$10,000</b> · <span id="providerPill" class="pill manual">manual</span></div>
     </div>
     <div class="statline">
       <div class="stat"><div class="lab">Total value</div><div class="val" id="hdrValue">$10,000.00</div></div>
@@ -158,49 +158,32 @@ hr.sep{border:none; border-top:1px solid var(--line); margin:18px 0}
       <span class="muted" id="refreshStatus" style="font-size:12.5px"></span>
     </div>
 
-    <div class="grid2">
-      <div class="panel">
-        <h2>Equity curve</h2>
-        <p class="desc">Your paper portfolio against $10,000 buy-and-hold in SPY over the same window. This line is the honesty check: if amber isn't beating gray, the picking isn't adding anything.</p>
-        <canvas id="equityChart" width="700" height="300"></canvas>
-        <div class="legend">
-          <span><i style="background:var(--amber)"></i>Portfolio <b id="legPort" class="amberv" style="font-family:var(--mono)">—</b></span>
-          <span><i style="background:var(--spy)"></i>SPY hold <b id="legSpy" style="font-family:var(--mono); color:var(--spy)">—</b></span>
-          <span><i style="background:var(--faint); height:1px; border-top:1px dashed var(--faint)"></i>$10k baseline</span>
-        </div>
-      </div>
-
-      <div class="panel">
-        <h2>Daily routine</h2>
-        <p class="desc">Watching is continuous. Acting is on a slow, separate clock.</p>
-        <ol style="padding-left:18px; margin:0; font-size:13.5px; line-height:1.85; color:var(--muted)">
-          <li>Refresh quotes &amp; scan the flags below</li>
-          <li>A flag is a <b style="color:var(--ink)">research prompt</b>, never a buy order</li>
-          <li>Before any trade, pass the four-question edge test</li>
-          <li>Set the stop and target <b style="color:var(--ink)">before</b> you enter</li>
-          <li>Log it, then check this curve against SPY</li>
-        </ol>
-        <div class="callout" style="margin-top:16px">
-          <b>Edge test:</b> What's the thesis? Why isn't it already in the price? What would prove me wrong? Over what horizon? If you can't answer #2, you have a guess, not an edge.
-        </div>
+    <div class="panel">
+      <h2>Watching trends</h2>
+      <p class="desc">Your pretend portfolio vs just holding $10,000 in SPY over the same stretch. If the amber line isn't beating gray, the picks aren't adding anything.</p>
+      <canvas id="equityChart" width="700" height="300"></canvas>
+      <div class="legend">
+        <span><i style="background:var(--amber)"></i>Portfolio <b id="legPort" class="amberv" style="font-family:var(--mono)">—</b></span>
+        <span><i style="background:var(--spy)"></i>SPY hold <b id="legSpy" style="font-family:var(--mono); color:var(--spy)">—</b></span>
+        <span><i style="background:var(--faint); height:1px; border-top:1px dashed var(--faint)"></i>$10k baseline</span>
       </div>
     </div>
 
     <div class="panel" style="margin-top:18px">
       <h2>Watchlist &amp; signals</h2>
-      <p class="desc">Indicators are <b>hypotheses to test</b>, not predictions. "Oversold + bullish cross" means <i>go research why</i> — then write a thesis or walk away. Tier 1 is where you have a real informational edge. Tier 2 you don't, so size smaller and lean on the benchmark.</p>
+      <p class="desc">Signals worth a look — not buy orders.</p>
       <div style="overflow-x:auto">
       <table id="watchTable">
         <thead>
           <tr>
             <th class="l">Ticker</th><th>Last</th><th>Day %</th>
-            <th>vs SMA20</th><th>vs SMA50</th><th>RSI(14)</th><th>MACD</th><th class="l">Flag (hypothesis)</th><th class="l">News &amp; sentiment</th>
+            <th>vs SMA20</th><th>vs SMA50</th><th>RSI(14)</th><th>MACD</th><th class="l">Signal</th><th class="l">News &amp; sentiment</th>
           </tr>
         </thead>
         <tbody id="watchBody"></tbody>
       </table>
       </div>
-      <p class="faint" style="font-size:11.5px; margin-top:12px">Indicators are computed from the daily closes in the cloud feed and fill out as more history accumulates. The last column is a one-line headline + sentiment per ticker.</p>
+      <p class="faint" style="font-size:11.5px; margin-top:12px">Indicators fill in as daily history builds. Last column is a headline plus sentiment for each ticker.</p>
     </div>
 
     <div class="panel" style="margin-top:18px">
@@ -221,67 +204,46 @@ hr.sep{border:none; border-top:1px solid var(--line); margin:18px 0}
 
   <!-- TRADE -->
   <section id="tab-trade" hidden>
-    <div class="grid2">
-      <div class="panel">
-        <h2>Log a paper trade</h2>
-        <p class="desc">The form won't submit a buy until the stop, the target and all four edge questions are filled. That gate is the whole point — bravery tied to a written thesis, capped by a stop.</p>
+    <div class="panel">
+      <h2>Log a trade</h2>
+      <p class="desc">Only a ticker and share count are required. Everything else is optional.</p>
 
-        <div class="row2">
-          <label class="fld"><span class="lt">Action</span>
-            <select id="tAction"><option value="buy">Buy</option><option value="sell">Sell</option></select>
-          </label>
-          <label class="fld"><span class="lt">Ticker</span>
-            <input id="tTicker" class="mono" placeholder="DDOG" autocomplete="off"/>
-          </label>
-        </div>
-
-        <div class="row3">
-          <label class="fld"><span class="lt">Shares</span><input id="tShares" class="mono" type="number" min="0" step="0.0001" placeholder="0"/></label>
-          <label class="fld"><span class="lt">Price <b id="tPxHint" class="faint" style="font-weight:400"></b></span><input id="tPrice" class="mono" type="number" min="0" step="0.01" placeholder="0.00"/></label>
-          <label class="fld"><span class="lt">Est. cost / proceeds</span><input id="tCost" class="mono" readonly placeholder="$0.00"/></label>
-        </div>
-
-        <div id="buyOnly">
-          <div class="row2">
-            <label class="fld"><span class="lt">Stop-loss <b>(required)</b></span><input id="tStop" class="mono" type="number" min="0" step="0.01" placeholder="below entry"/></label>
-            <label class="fld"><span class="lt">Take-profit target <b>(required)</b></span><input id="tTarget" class="mono" type="number" min="0" step="0.01" placeholder="above entry"/></label>
-          </div>
-          <label class="fld"><span class="lt">Strategy <b>(tag for P&amp;L tracking)</b></span>
-            <select id="tStrategy" class="mono">
-              <option value="disciplined">Disciplined — edge-based</option>
-              <option value="wildcard">Wildcard — momentum gamble</option>
-            </select>
-          </label>
-          <div class="riskbox" id="riskBox"></div>
-          <hr class="sep"/>
-          <label class="fld"><span class="lt">1 · Thesis — what's the trade?</span><textarea id="tQ1" placeholder="e.g. DDOG AI-workload observability converts to seats; NRR re-accelerates toward 120%."></textarea></label>
-          <label class="fld"><span class="lt">2 · Why isn't this already in the price?</span><textarea id="tQ2" placeholder="The hardest one. If you can't answer it honestly, stop here."></textarea></label>
-          <label class="fld"><span class="lt">3 · What would prove me wrong?</span><textarea id="tQ3" placeholder="e.g. NRR prints below 110%, or FY guide is cut."></textarea></label>
-          <label class="fld"><span class="lt">4 · Horizon</span><input id="tQ4" placeholder="e.g. through next 2 earnings prints"/></label>
-        </div>
-
-        <label class="fld" id="sellNoteWrap" hidden><span class="lt">Exit note (why now?)</span><textarea id="tNote" placeholder="Hit target / stop / thesis broke / better use of capital"></textarea></label>
-
-        <div class="gatewarn" id="gateWarn"></div>
-        <button class="btn" id="submitTrade">Log trade</button>
-      </div>
-
-      <div class="panel">
-        <h2>Position sizing</h2>
-        <p class="desc">Defense is systematic. No single name above the cap, no margin, ever.</p>
-        <label class="fld"><span class="lt">Max position size (% of $10k book)</span>
-          <input id="maxPct" class="mono" type="number" min="1" max="100" step="1" value="20"/>
+      <div class="row2">
+        <label class="fld"><span class="lt">Action</span>
+          <select id="tAction"><option value="buy">Buy</option><option value="sell">Sell</option></select>
         </label>
-        <div class="riskbox" style="flex-direction:column; gap:9px">
-          <div>Cash available: <b id="sizeCash">$10,000.00</b></div>
-          <div>Cap per position: <b id="sizeCap">$2,000.00</b></div>
-          <div>This order uses: <b id="sizeUses">$0.00</b></div>
-        </div>
-        <div class="callout" style="margin-top:16px">
-          A 50% loss needs a 100% gain to recover. Losses compound against you harder than wins compound for you — which is why the cap and the stop exist before conviction does.
-        </div>
-        <div class="thesis-seed" id="seedHint"></div>
+        <label class="fld"><span class="lt">Ticker</span>
+          <input id="tTicker" class="mono" placeholder="DDOG" autocomplete="off"/>
+        </label>
       </div>
+
+      <div class="row2">
+        <label class="fld"><span class="lt">Shares</span><input id="tShares" class="mono" type="number" min="0" step="0.0001" placeholder="0"/></label>
+        <label class="fld"><span class="lt">Price <b id="tPxHint" class="faint" style="font-weight:400"></b></span><input id="tPrice" class="mono" type="number" min="0" step="0.01" placeholder="0.00"/></label>
+      </div>
+
+      <div class="thesis-seed" id="seedHint"></div>
+      <div id="orderInfo" class="riskbox" style="margin-top:4px"></div>
+
+      <div id="buyOnly">
+        <div class="row2">
+          <label class="fld"><span class="lt">Sell at this low price <b>(optional)</b></span><input id="tStop" class="mono" type="number" min="0" step="0.01" placeholder="auto-sell if it drops here"/></label>
+          <label class="fld"><span class="lt">Sell at this high price <b>(optional)</b></span><input id="tTarget" class="mono" type="number" min="0" step="0.01" placeholder="auto-sell if it climbs here"/></label>
+        </div>
+        <label class="fld"><span class="lt">Strategy <b>(for P&amp;L tracking)</b></span>
+          <select id="tStrategy" class="mono">
+            <option value="disciplined">Disciplined</option>
+            <option value="wildcard">Wildcard</option>
+          </select>
+        </label>
+        <hr class="sep"/>
+        <label class="fld"><span class="lt">Why buy it? <b>(optional)</b></span><textarea id="tQ1" placeholder="Optional — your reason"></textarea></label>
+        <label class="fld"><span class="lt">What could make this a bad buy? <b>(optional)</b></span><textarea id="tQ3" placeholder="Optional"></textarea></label>
+        <label class="fld"><span class="lt">How long do you expect to keep it? <b>(optional)</b></span><input id="tQ4" placeholder="Optional — e.g. a few weeks"/></label>
+      </div>
+
+      <div class="gatewarn" id="gateWarn"></div>
+      <button class="btn" id="submitTrade">Log trade</button>
     </div>
   </section>
 
@@ -289,11 +251,11 @@ hr.sep{border:none; border-top:1px solid var(--line); margin:18px 0}
   <section id="tab-folio" hidden>
     <div class="panel">
       <h2>Open positions</h2>
-      <p class="desc">Unrealized P&amp;L marks against the last fetched price. R = reward-to-risk from your stop and target.</p>
+      <p class="desc">Your current holdings, valued at the latest price.</p>
       <div style="overflow-x:auto">
       <table>
         <thead><tr>
-          <th class="l">Ticker</th><th>Strategy</th><th>Shares</th><th>Avg entry</th><th>Last</th><th>Mkt value</th><th>Unreal. P&amp;L</th><th>Stop</th><th>Target</th><th>R</th>
+          <th class="l">Ticker</th><th>Strategy</th><th>Shares</th><th>Avg entry</th><th>Last</th><th>Mkt value</th><th>Unreal. P&amp;L</th><th>Sell low</th><th>Sell high</th><th>R</th>
         </tr></thead>
         <tbody id="folioBody"></tbody>
       </table>
@@ -309,7 +271,7 @@ hr.sep{border:none; border-top:1px solid var(--line); margin:18px 0}
     </div>
     <div class="panel">
       <h2>P&amp;L by strategy</h2>
-      <p class="desc">Disciplined (edge-based) vs Wildcard (momentum gamble) — the honest scoreboard for whether chasing rockets actually beats the patient sleeve. Two strategies, one curve.</p>
+      <p class="desc">Disciplined picks vs wildcard gambles, side by side.</p>
       <div id="byStrategy"></div>
     </div>
   </section>
@@ -318,7 +280,7 @@ hr.sep{border:none; border-top:1px solid var(--line); margin:18px 0}
   <section id="tab-journal" hidden>
     <div class="panel">
       <h2>Trade journal</h2>
-      <p class="desc">Every decision, timestamped, with the thesis you wrote at the time. This is what separates skill from luck later — and what most people skip because it tends to show they're not as good as the bull market made them feel.</p>
+      <p class="desc">A log of every trade you make, with the date and your notes.</p>
       <div class="toolbar"><button class="btn ghost" id="exportBtn">Export JSON</button></div>
       <div id="journalList"></div>
     </div>
@@ -342,9 +304,9 @@ hr.sep{border:none; border-top:1px solid var(--line); margin:18px 0}
 
     <div class="panel">
       <h2>Watchlist</h2>
-      <p class="desc">Comma-separated tickers. Tier 1 = your edge (observability/infra). Tier 2 = thematic, no edge. Benchmarks are tracked but not traded.</p>
-      <label class="fld"><span class="lt">Tier 1 — domain edge</span><input id="setTier1" class="mono"/></label>
-      <label class="fld"><span class="lt">Tier 2 — thematic</span><input id="setTier2" class="mono"/></label>
+      <p class="desc">Comma-separated tickers. These show on the watchlist. (The cloud feed sets these, so changes here get overwritten on the next load.)</p>
+      <label class="fld"><span class="lt">Tier 1</span><input id="setTier1" class="mono"/></label>
+      <label class="fld"><span class="lt">Tier 2</span><input id="setTier2" class="mono"/></label>
       <label class="fld"><span class="lt">Benchmarks</span><input id="setBench" class="mono"/></label>
       <button class="btn" id="saveWatch">Save watchlist</button>
     </div>
@@ -368,14 +330,14 @@ hr.sep{border:none; border-top:1px solid var(--line); margin:18px 0}
   </section>
 
   <div class="foot">
-    Paper trading only. Signals are decision support, not predictions or financial advice. The evidence is overwhelming that consistent retail outperformance is rare — this tool exists to test honestly whether a thesis beats simply holding the index, before any real capital is ever at risk.
+    Just for fun — not a real trading or financial advice site.
   </div>
 </div>
 
 <script>
 "use strict";
 /* ============================================================
-   Edge Watch — single-file disciplined paper-trading dashboard
+   Market Practice — single-file paper-trading dashboard
    Storage: localStorage (runs locally; not for the Claude sandbox)
    Data:    static JSON feed from a GitHub Action (daily OHLC + news/sentiment
             + sector ETFs + market movers) with manual entry as fallback.
@@ -451,7 +413,7 @@ function closes(sym){ const h=S.history[sym]; return h?h.map(x=>x.c):[]; }
 /* ---------- signal framing (hypotheses, never orders) ---------- */
 function signalFor(sym){
   const a=closes(sym), last=a[a.length-1];
-  const out={s20:null,s50:null,rsi:NaN,macd:null,flag:null,note:"Accumulating history…"};
+  const out={s20:null,s50:null,rsi:NaN,macd:null,flag:null,note:"Building…"};
   if(!a.length) return out;
   const s20=sma(a,20), s50=sma(a,50), r=rsi(a,14), m=macd(a);
   out.s20=isFinite(s20)?(last>=s20):null; out.s50=isFinite(s50)?(last>=s50):null;
@@ -460,13 +422,13 @@ function signalFor(sym){
   const trendUp = out.s20===true && out.s50===true;
   const trendDn = out.s20===false && out.s50===false;
   if(trendUp){ cls="up"; flag="Uptrend"; } else if(trendDn){ cls="down"; flag="Downtrend"; }
-  if(isFinite(r)){ if(r<30){ cls="over"; bits.push("oversold — research a buy-low thesis"); }
-    else if(r>70){ cls="over"; bits.push("overbought — consider trimming"); } }
+  if(isFinite(r)){ if(r<30){ cls="over"; bits.push("oversold"); }
+    else if(r>70){ cls="over"; bits.push("overbought"); } }
   if(m && isFinite(m.hist)){ if(m.hist>0) bits.push("bullish MACD"); else bits.push("bearish MACD"); }
   out.flagClass=cls;
   out.flag = flag;
   out.note = bits.length? (flag+" · "+bits.join(" · ")) : flag;
-  if(!isFinite(s50)) { out.flagClass="na"; out.note="Need ≥50 daily closes for full read"; out.flag="Partial"; }
+  if(!isFinite(s50)) { out.flagClass="na"; out.note="Not enough history yet"; out.flag="Partial"; }
   return out;
 }
 
@@ -541,7 +503,7 @@ function truncWords(s,n){ if(!s) return ""; if(s.length<=n) return s; return s.s
 
 function renderWatch(){
   const s=S.settings, body=$("watchBody"); body.innerHTML="";
-  const tiers=[["Tier 1 · your edge",s.tier1],["Tier 2 · thematic (no edge — size small)",s.tier2],["Benchmarks · reference only",s.bench]];
+  const tiers=[["Main watchlist",s.tier1],["Also watching",s.tier2],["Benchmarks",s.bench]];
   for(const [label,list] of tiers){
     if(!list.length) continue;
     const tr=document.createElement("tr"); tr.innerHTML=`<td class="tier-label" colspan="9">${label}</td>`; body.appendChild(tr);
@@ -624,7 +586,7 @@ function renderFolio(){
       <td>${isFinite(px)?money(px):'—'}</td>
       <td>${isFinite(mv)?money(mv):'—'}</td>
       <td class="${isFinite(upl)?(upl>=0?'pos':'neg'):'faint'}">${isFinite(upl)?money(upl):'—'}</td>
-      <td>${money(p.stop)}</td><td>${money(p.target)}</td>
+      <td>${(isFinite(p.stop)&&p.stop>0)?money(p.stop):'—'}</td><td>${(isFinite(p.target)&&p.target>0)?money(p.target):'—'}</td>
       <td>${isFinite(R)?R.toFixed(2)+"×":'—'}</td>`;
     body.appendChild(r);
   }
@@ -665,22 +627,24 @@ function renderStrategy(closed){
 
 function renderJournal(){
   const list=$("journalList"); list.innerHTML="";
-  if(!S.journal.length){ list.innerHTML=`<div class="empty">No entries yet. Discipline starts with the first logged thesis.</div>`; return; }
+  if(!S.journal.length){ list.innerHTML=`<div class="empty">No trades logged yet.</div>`; return; }
   [...S.journal].reverse().forEach(j=>{
     const d=document.createElement("div"); d.className="journal-entry";
     const when=new Date(j.ts).toLocaleString();
     let body="";
     if(j.action==="buy"){
-      body=`<dl>
-        <dt>Thesis</dt><dd>${esc(j.q1)}</dd>
-        <dt>Why not priced</dt><dd>${esc(j.q2)}</dd>
-        <dt>Disproof</dt><dd>${esc(j.q3)}</dd>
-        <dt>Horizon</dt><dd>${esc(j.q4)}</dd>
-        <dt>Stop / Target</dt><dd>${money(j.stop)} / ${money(j.target)}</dd>
-      </dl>`;
+      const rows=[];
+      if(j.q1) rows.push(`<dt>Why buy</dt><dd>${esc(j.q1)}</dd>`);
+      if(j.q3) rows.push(`<dt>What could go wrong</dt><dd>${esc(j.q3)}</dd>`);
+      if(j.q4) rows.push(`<dt>Hold for</dt><dd>${esc(j.q4)}</dd>`);
+      const ex=[];
+      if(isFinite(j.stop)&&j.stop>0) ex.push("sell low "+money(j.stop));
+      if(isFinite(j.target)&&j.target>0) ex.push("sell high "+money(j.target));
+      if(ex.length) rows.push(`<dt>Auto-sell</dt><dd>${ex.join(" / ")}</dd>`);
+      if(j.strategy) rows.push(`<dt>Tag</dt><dd>${j.strategy==="wildcard"?"Wildcard":"Disciplined"}</dd>`);
+      body = rows.length? `<dl>${rows.join("")}</dl>` : "";
     } else {
       body=`<dl>
-        <dt>Exit note</dt><dd>${esc(j.note||"—")}</dd>
         <dt>Realized</dt><dd class="${j.realized>=0?'pos':'neg'}">${isFinite(j.realized)?money(j.realized):"—"}</dd>
       </dl>`;
     }
@@ -706,7 +670,7 @@ function renderChart(){
   const plotW=W-pad.l-pad.r, plotH=H-pad.t-pad.b;
   if(snaps.length<2){
     ctx.fillStyle="#6c6760"; ctx.font="13px 'Hanken Grotesk',sans-serif"; ctx.textAlign="center";
-    ctx.fillText("Accumulating — snapshots build as you check daily.", W/2, H/2);
+    ctx.fillText("Builds as days pass.", W/2, H/2);
     return;
   }
   const port=snaps.map(s=>s.port);
@@ -743,21 +707,15 @@ function renderChart(){
 /* ---------- trade form ---------- */
 function syncCostAndRisk(){
   const sh=num($("tShares").value), px=num($("tPrice").value);
-  const cost=isFinite(sh)&&isFinite(px)?sh*px:0;
-  $("tCost").value=money(cost||0);
-  $("sizeUses").textContent=money(cost||0);
-  const cap=START_CASH*(num($("maxPct").value)||20)/100;
-  $("sizeCash").textContent=money(S.cash); $("sizeCap").textContent=money(cap);
-  // risk box (buy)
-  const stop=num($("tStop").value), tgt=num($("tTarget").value);
-  const rb=$("riskBox");
-  if($("tAction").value==="buy" && isFinite(px)&&isFinite(sh)){
-    let html="";
-    if(isFinite(stop)){ const dn=(px-stop)*sh; html+=`Downside to stop: <b class="neg">${money(-Math.abs(dn))}</b>`; }
-    if(isFinite(tgt)){ const up=(tgt-px)*sh; html+=`<span>Upside to target: <b class="pos">${money(Math.abs(up))}</b></span>`; }
-    if(isFinite(stop)&&isFinite(tgt)&&(px-stop)>0){ const R=(tgt-px)/(px-stop); html+=`<span>Reward/risk: <b>${R.toFixed(2)}×</b></span>`; }
-    rb.innerHTML=html;
-  } else rb.innerHTML="";
+  const oi=$("orderInfo"); if(!oi) return;
+  if(!isFinite(sh)||!isFinite(px)||sh<=0||px<=0){ oi.innerHTML=""; return; }
+  const cost=sh*px;
+  if($("tAction").value==="buy"){
+    const left=S.cash-cost, pctBook=cost/START_CASH*100;
+    oi.innerHTML=`<span>Cost <b>${money(cost)}</b></span><span>Cash left <b class="${left<0?'neg':''}">${money(left)}</b></span><span><b>${pctBook.toFixed(1)}%</b> of your $10k</span>`;
+  } else {
+    oi.innerHTML=`<span>Proceeds <b>${money(cost)}</b></span><span>Cash after <b>${money(S.cash+cost)}</b></span>`;
+  }
 }
 function gateCheck(){
   const warn=$("gateWarn"); const action=$("tAction").value;
@@ -766,23 +724,9 @@ function gateCheck(){
   const problems=[];
   if(!sym) problems.push("ticker");
   if(!isFinite(sh)||sh<=0) problems.push("shares");
-  if(!isFinite(px)||px<=0) problems.push("price");
+  if(!isFinite(px)||px<=0) problems.push("a price");
   if(action==="buy"){
-    const stop=num($("tStop").value), tgt=num($("tTarget").value);
-    const cap=START_CASH*(num($("maxPct").value)||20)/100;
-    if(!isFinite(stop)||stop<=0) problems.push("stop-loss");
-    else if(stop>=px) problems.push("stop must be below entry");
-    if(!isFinite(tgt)||tgt<=0) problems.push("target");
-    else if(tgt<=px) problems.push("target must be above entry");
-    if(!$("tQ1").value.trim()) problems.push("thesis");
-    if(!$("tQ2").value.trim()) problems.push("why-not-priced");
-    if(!$("tQ3").value.trim()) problems.push("disproof");
-    if(!$("tQ4").value.trim()) problems.push("horizon");
-    if(isFinite(sh)&&isFinite(px)){
-      const cost=sh*px;
-      if(cost>S.cash+1e-6) problems.push("insufficient cash (no margin)");
-      if(cost>cap+1e-6) problems.push(`exceeds ${num($('maxPct').value)||20}% cap`);
-    }
+    if(isFinite(sh)&&isFinite(px)&&sh*px>S.cash+1e-6) problems.push("not enough cash");
   } else {
     const held=S.positions[sym]?S.positions[sym].shares:0;
     if(!held) problems.push("no position to sell");
@@ -791,7 +735,7 @@ function gateCheck(){
   const ok=problems.length===0;
   $("submitTrade").disabled=!ok;
   warn.className="gatewarn"+(ok?" gateok":"");
-  warn.textContent= ok? "Edge test complete — clear to log." : "Blocked: "+problems.join(", ")+".";
+  warn.textContent= ok? "Ready to log." : "Need: "+problems.join(", ")+".";
   return ok;
 }
 function submitTrade(){
@@ -807,15 +751,15 @@ function submitTrade(){
     if(ex){ const tot=ex.shares+sh; ex.avg=(ex.avg*ex.shares+px*sh)/tot; ex.shares=tot; ex.stop=stop; ex.target=tgt; }
     else S.positions[sym]={shares:sh, avg:px, stop, target:tgt, opened:Date.now(), strategy:strat};
     S.journal.push({ts:Date.now(),action:"buy",sym,shares:sh,price:px,stop,target:tgt,strategy:strat,
-      q1:$("tQ1").value.trim(),q2:$("tQ2").value.trim(),q3:$("tQ3").value.trim(),q4:$("tQ4").value.trim()});
+      q1:$("tQ1").value.trim(),q3:$("tQ3").value.trim(),q4:$("tQ4").value.trim()});
   } else {
     const p=S.positions[sym]; const proceeds=sh*px; S.cash+=proceeds;
     const realized=(px-p.avg)*sh; const strat=(p&&p.strategy)||"disciplined";
     p.shares-=sh; if(p.shares<=1e-9) delete S.positions[sym];
-    S.journal.push({ts:Date.now(),action:"sell",sym,shares:sh,price:px,note:$("tNote").value.trim(),realized,strategy:strat});
+    S.journal.push({ts:Date.now(),action:"sell",sym,shares:sh,price:px,note:"",realized,strategy:strat});
   }
   recordClose(sym,px); snapshot(); save();
-  ["tTicker","tShares","tPrice","tStop","tTarget","tQ1","tQ2","tQ3","tQ4","tNote"].forEach(i=>$(i).value="");
+  ["tTicker","tShares","tPrice","tStop","tTarget","tQ1","tQ3","tQ4"].forEach(i=>$(i).value="");
   syncCostAndRisk(); gateCheck(); renderAll();
   switchTab("folio");
 }
@@ -831,7 +775,6 @@ function loadSettingsForm(){
   const s=S.settings;
   $("setUrl").value=s.dataUrl||"";
   $("setTier1").value=s.tier1.join(", "); $("setTier2").value=s.tier2.join(", "); $("setBench").value=s.bench.join(", ");
-  $("maxPct").value=s.maxPct;
   setProviderPill();
 }
 function parseList(v){ return v.split(/[, \n]+/).map(x=>x.trim().toUpperCase()).filter(Boolean); }
@@ -851,23 +794,23 @@ function init(){
   $("refreshBtn").addEventListener("click",refreshAll);
   $("snapBtn").addEventListener("click",()=>{ snapshot(); save(); renderChart(); $("refreshStatus").textContent="Snapshot saved for "+today(); });
   // trade form
-  ["tShares","tPrice","tStop","tTarget","maxPct"].forEach(i=>$(i).addEventListener("input",()=>{syncCostAndRisk();gateCheck();}));
-  ["tTicker","tQ1","tQ2","tQ3","tQ4","tNote"].forEach(i=>$(i).addEventListener("input",gateCheck));
+  ["tShares","tPrice","tStop","tTarget"].forEach(i=>$(i).addEventListener("input",()=>{syncCostAndRisk();gateCheck();}));
+  ["tTicker","tQ1","tQ3","tQ4"].forEach(i=>$(i).addEventListener("input",gateCheck));
   $("tTicker").addEventListener("input",()=>{ const sym=$("tTicker").value.trim().toUpperCase();
     if(sym&&S.prices[sym]&&!$("tPrice").value){ $("tPrice").value=S.prices[sym].c.toFixed(2); syncCostAndRisk(); }
-    $("tPxHint").textContent = sym&&S.prices[sym]?`(live ${money(S.prices[sym].c)})`:""; gateCheck(); });
+    $("tPxHint").textContent = sym&&S.prices[sym]?`(latest ${money(S.prices[sym].c)})`:""; gateCheck(); });
   $("tAction").addEventListener("change",()=>{
     const sell=$("tAction").value==="sell";
-    $("buyOnly").hidden=sell; $("sellNoteWrap").hidden=!sell;
+    $("buyOnly").hidden=sell;
     const sym=$("tTicker").value.trim().toUpperCase();
     $("seedHint").textContent = sell&&S.positions[sym] ? `Holding ${S.positions[sym].shares} ${sym} @ avg ${money(S.positions[sym].avg)}.` : "";
-    gateCheck();
+    syncCostAndRisk(); gateCheck();
   });
   $("submitTrade").addEventListener("click",submitTrade);
   // journal export
   $("exportBtn").addEventListener("click",()=>{
     const blob=new Blob([JSON.stringify(S.journal,null,2)],{type:"application/json"});
-    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="edgewatch-journal.json"; a.click();
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="market-practice-journal.json"; a.click();
   });
   // settings
   $("saveSettings").addEventListener("click",()=>{
@@ -887,7 +830,6 @@ function init(){
     S.settings.bench=parseList($("setBench").value); save(); renderAll(); $("testStatus").textContent="";
     alert("Watchlist saved. Refresh prices on the Dashboard.");
   });
-  $("maxPct").addEventListener("change",()=>{ S.settings.maxPct=num($("maxPct").value)||20; save(); });
   $("saveHist").addEventListener("click",()=>{
     const sym=$("histSym").value.trim().toUpperCase(); if(!sym){alert("Enter a symbol");return;}
     const px=num($("histPx").value);
